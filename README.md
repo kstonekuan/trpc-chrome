@@ -39,10 +39,10 @@ yarn add @kstonekuan/trpc-chrome
 
 ```typescript
 // background.ts
-import { initTRPC } from '@trpc/server';
 import { createChromeHandler } from '@kstonekuan/trpc-chrome/adapter';
+import { createTRPCForChrome } from '@kstonekuan/trpc-chrome/utils';
 
-const t = initTRPC.create();
+const t = createTRPCForChrome(); // Pre-configured with SuperJSON
 
 const appRouter = t.router({
   // ...procedures
@@ -67,8 +67,19 @@ import superjson from 'superjson'; // Optional: for Date, Map, Set support
 
 import type { AppRouter } from './background';
 
-const port = chrome.runtime.connect();
+// Option 1: Named port connection
 export const chromeClient = createTRPCClient<AppRouter>({
+  links: [
+    chromeLink({ 
+      portName: 'ui-to-background', // Named port for multi-channel communication
+      transformer: superjson, // Optional: must match server transformer
+    })
+  ],
+});
+
+// Option 2: Explicit port connection (legacy)
+const port = chrome.runtime.connect();
+export const chromeClient2 = createTRPCClient<AppRouter>({
   links: [
     chromeLink({ 
       port,
@@ -85,6 +96,67 @@ Peer dependencies:
 - [`tRPC`](https://github.com/trpc/trpc) Server v11 (`@trpc/server`) must be installed.
 - [`tRPC`](https://github.com/trpc/trpc) Client v11 (`@trpc/client`) must be installed.
 
+## Advanced Features
+
+### Router Composition
+
+```typescript
+// background.ts
+import { createTRPCForChrome, mergeRouters } from '@kstonekuan/trpc-chrome/utils';
+
+const t = createTRPCForChrome(); // Pre-configured with SuperJSON
+
+const userRouter = t.router({
+  getProfile: t.procedure.query(() => ({ name: 'John' })),
+  updateProfile: t.procedure.input(z.object({ name: z.string() })).mutation(({ input }) => input),
+});
+
+const settingsRouter = t.router({
+  getTheme: t.procedure.query(() => 'dark'),
+  setTheme: t.procedure.input(z.enum(['light', 'dark'])).mutation(({ input }) => input),
+});
+
+// Merge multiple routers
+const appRouter = mergeRouters(userRouter, settingsRouter);
+
+// Or create namespaced structure
+const appRouter2 = t.router({
+  user: userRouter,
+  settings: settingsRouter,
+});
+
+// Usage: trpc.user.getProfile.query()
+```
+
+### Multi-Channel Communication
+
+```typescript
+// Different communication channels for complex extensions
+const uiClient = createTRPCClient<AppRouter>({
+  links: [chromeLink({ portName: 'ui-to-background' })],
+});
+
+const offscreenClient = createTRPCClient<AppRouter>({
+  links: [chromeLink({ portName: 'background-to-offscreen' })],
+});
+
+const contentClient = createTRPCClient<AppRouter>({
+  links: [chromeLink({ portName: 'content-to-background' })],
+});
+```
+
+### Lazy Loading with Dynamic Imports
+
+```typescript
+const heavyProcedure = t.procedure
+  .input(z.string())
+  .mutation(async ({ input }) => {
+    // Lazy-loaded handler
+    const { handleHeavyOperation } = await import('./heavy-handler');
+    return handleHeavyOperation(input);
+  });
+```
+
 ## Example
 
 Please see [full example here](examples/with-plasmo).
@@ -99,8 +171,11 @@ Please see [full typings here](src/link/index.ts).
 
 | Property      | Type                        | Description                                                      | Required |
 | ------------- | --------------------------- | ---------------------------------------------------------------- | -------- |
-| `port`        | `chrome.runtime.Port`       | An open web extension port between content & background scripts. | `true`   |
-| `transformer` | `CombinedDataTransformer`   | Data transformer for serializing/deserializing data (e.g., superjson). | `false`  |
+| `port`        | `chrome.runtime.Port`       | An open web extension port between content & background scripts. | `false`  |
+| `portName`    | `string`                    | Name for the port connection (e.g., 'ui-to-background'). If provided, a new port will be created. | `false`  |
+| `transformer` | `superjson`                 | Data transformer for serializing/deserializing data (e.g., superjson). | `false`  |
+
+Note: Either `port` or `portName` must be provided, but not both.
 
 #### CreateChromeHandlerOptions
 

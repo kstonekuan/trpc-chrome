@@ -16,6 +16,7 @@ export default defineConfig({
         adapter: resolve(__dirname, 'src/adapter/index.ts'),
         link: resolve(__dirname, 'src/link/index.ts'),
         types: resolve(__dirname, 'src/types/index.ts'),
+        utils: resolve(__dirname, 'src/utils/index.ts'),
       },
       formats: ['es', 'cjs'],
     },

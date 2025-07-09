@@ -5,7 +5,8 @@ import type superjson from 'superjson';
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
 
 export type ChromeLinkOptions = {
-  port: chrome.runtime.Port;
+  port?: chrome.runtime.Port;
+  portName?: string;
   transformer?: superjson;
 };
 
@@ -13,7 +14,10 @@ export const chromeLink = <TRouter extends AnyRouter>(
   opts: ChromeLinkOptions,
 ): TRPCLink<TRouter> => {
   return () => {
-    const { port, transformer } = opts;
+    const { port: providedPort, portName, transformer } = opts;
+
+    // Use provided port or create a new one with optional name
+    const port = providedPort || chrome.runtime.connect(portName ? { name: portName } : undefined);
     return ({ op }) => {
       return observable((observer) => {
         const listeners: (() => void)[] = [];
