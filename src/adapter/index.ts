@@ -1,8 +1,10 @@
-import { type AnyProcedure, type AnyRouter, type ProcedureType, TRPCError } from '@trpc/server';
-// eslint-disable-next-line import/no-unresolved
-import type { NodeHTTPCreateContextOption } from '@trpc/server/dist/adapters/node-http/types';
-// eslint-disable-next-line import/no-unresolved
-import type { BaseHandlerOptions } from '@trpc/server/dist/internals/types';
+import {
+  type AnyProcedure,
+  type AnyRouter,
+  getErrorShape,
+  type ProcedureType,
+  TRPCError,
+} from '@trpc/server';
 import { isObservable, type Unsubscribable } from '@trpc/server/observable';
 
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
@@ -13,15 +15,18 @@ export type CreateChromeContextOptions = {
   res: undefined;
 };
 
-export type CreateChromeHandlerOptions<TRouter extends AnyRouter> = Pick<
-  BaseHandlerOptions<TRouter, CreateChromeContextOptions['req']> &
-    NodeHTTPCreateContextOption<
-      TRouter,
-      CreateChromeContextOptions['req'],
-      CreateChromeContextOptions['res']
-    >,
-  'router' | 'createContext' | 'onError'
->;
+export type CreateChromeHandlerOptions<TRouter extends AnyRouter> = {
+  router: TRouter;
+  createContext?: (opts: CreateChromeContextOptions & { info?: any }) => Promise<any> | any;
+  onError?: (opts: {
+    error: TRPCError;
+    type: ProcedureType;
+    path: string | undefined;
+    input: unknown;
+    ctx: unknown;
+    req: chrome.runtime.Port;
+  }) => void;
+};
 
 export const createChromeHandler = <TRouter extends AnyRouter>(
   opts: CreateChromeHandlerOptions<TRouter>,
@@ -77,7 +82,19 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
 
         input = transformer.input.deserialize(params.input);
 
-        ctx = await createContext?.({ req: port, res: undefined });
+        ctx = await createContext?.({
+          req: port,
+          res: undefined,
+          info: {
+            isBatchCall: false,
+            accept: 'application/jsonl',
+            type: 'query',
+            calls: [],
+            connectionParams: null,
+            signal: new AbortController().signal,
+            rawInput: input,
+          },
+        });
         const caller = router.createCaller(ctx);
 
         const segments = params.path.split('.');
@@ -128,7 +145,8 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
             });
 
             sendResponse({
-              error: router.getErrorShape({
+              error: getErrorShape({
+                config: router._def._config,
                 error,
                 type: method,
                 path: params?.path,
@@ -181,7 +199,8 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
         });
 
         sendResponse({
-          error: router.getErrorShape({
+          error: getErrorShape({
+            config: router._def._config,
             error,
             type: method as ProcedureType,
             path: params?.path,

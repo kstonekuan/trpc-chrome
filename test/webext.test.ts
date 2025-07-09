@@ -37,7 +37,11 @@ const appRouter = t.router({
 
 test('with query', async () => {
   // background
-  createChromeHandler({ router: appRouter });
+  createChromeHandler({
+    router: appRouter,
+    createContext: () => ({}),
+    onError: ({ error }) => console.error(error),
+  });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
   // content
@@ -62,7 +66,11 @@ test('with query', async () => {
 
 test('with mutation', async () => {
   // background
-  createChromeHandler({ router: appRouter });
+  createChromeHandler({
+    router: appRouter,
+    createContext: () => ({}),
+    onError: ({ error }) => console.error(error),
+  });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
   // content
@@ -87,7 +95,11 @@ test('with mutation', async () => {
 
 test('with subscription', async () => {
   // background
-  createChromeHandler({ router: appRouter });
+  createChromeHandler({
+    router: appRouter,
+    createContext: () => ({}),
+    onError: ({ error }) => console.error(error),
+  });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
   // content

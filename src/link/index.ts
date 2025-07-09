@@ -1,18 +1,20 @@
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
+import type { CombinedDataTransformer } from '@trpc/server/unstable-core-do-not-import';
 
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
 
 export type ChromeLinkOptions = {
   port: chrome.runtime.Port;
+  transformer?: CombinedDataTransformer;
 };
 
 export const chromeLink = <TRouter extends AnyRouter>(
   opts: ChromeLinkOptions,
 ): TRPCLink<TRouter> => {
-  return (runtime) => {
-    const { port } = opts;
+  return () => {
+    const { port, transformer } = opts;
     return ({ op }) => {
       return observable((observer) => {
         const listeners: (() => void)[] = [];
@@ -20,7 +22,7 @@ export const chromeLink = <TRouter extends AnyRouter>(
         const { id, type, path } = op;
 
         try {
-          const input = runtime.transformer.serialize(op.input);
+          const input = transformer ? transformer.input.serialize(op.input) : op.input;
 
           const onDisconnect = () => {
             observer.error(new TRPCClientError('Port disconnected prematurely'));
@@ -37,7 +39,7 @@ export const chromeLink = <TRouter extends AnyRouter>(
             if (id !== trpc.id) return;
 
             if ('error' in trpc) {
-              const error = runtime.transformer.deserialize(trpc.error);
+              const error = transformer ? transformer.output.deserialize(trpc.error) : trpc.error;
               observer.error(TRPCClientError.from({ ...trpc, error }));
               return;
             }
@@ -47,7 +49,9 @@ export const chromeLink = <TRouter extends AnyRouter>(
                 ...trpc.result,
                 ...((!trpc.result.type || trpc.result.type === 'data') && {
                   type: 'data',
-                  data: runtime.transformer.deserialize(trpc.result.data),
+                  data: transformer
+                    ? transformer.output.deserialize(trpc.result.data)
+                    : trpc.result.data,
                 }),
               } as any,
             });
