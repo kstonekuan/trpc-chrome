@@ -1,13 +1,12 @@
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
-import type { CombinedDataTransformer } from '@trpc/server/unstable-core-do-not-import';
-
+import type superjson from 'superjson';
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
 
 export type ChromeLinkOptions = {
   port: chrome.runtime.Port;
-  transformer?: CombinedDataTransformer;
+  transformer?: superjson;
 };
 
 export const chromeLink = <TRouter extends AnyRouter>(
@@ -22,7 +21,7 @@ export const chromeLink = <TRouter extends AnyRouter>(
         const { id, type, path } = op;
 
         try {
-          const input = transformer ? transformer.input.serialize(op.input) : op.input;
+          const input = transformer ? transformer.serialize(op.input) : op.input;
 
           const onDisconnect = () => {
             observer.error(new TRPCClientError('Port disconnected prematurely'));
@@ -39,8 +38,7 @@ export const chromeLink = <TRouter extends AnyRouter>(
             if (id !== trpc.id) return;
 
             if ('error' in trpc) {
-              const error = transformer ? transformer.output.deserialize(trpc.error) : trpc.error;
-              observer.error(TRPCClientError.from({ ...trpc, error }));
+              observer.error(TRPCClientError.from(trpc));
               return;
             }
 
@@ -49,9 +47,7 @@ export const chromeLink = <TRouter extends AnyRouter>(
                 ...trpc.result,
                 ...((!trpc.result.type || trpc.result.type === 'data') && {
                   type: 'data',
-                  data: transformer
-                    ? transformer.output.deserialize(trpc.result.data)
-                    : trpc.result.data,
+                  data: transformer ? transformer.deserialize(trpc.result.data) : trpc.result.data,
                 }),
               } as any,
             });
