@@ -1,8 +1,8 @@
 {
-  "name": "trpc-chrome",
-  "version": "1.0.0",
+  "name": "@kstonekuan/trpc-chrome",
+  "version": "1.1.0",
   "description": "tRPC adapter for Web Extensions",
-  "author": "James Berry <jb@jamesbe.com>",
+  "author": "kstonekuan",
   "private": false,
   "license": "MIT",
   "keywords": [
@@ -12,9 +12,9 @@
     "webext",
     "webextension"
   ],
-  "homepage": "https://github.com/jlalmes/trpc-chrome",
-  "repository": "github:jlalmes/trpc-chrome",
-  "bugs": "https://github.com/jlalmes/trpc-chrome/issues",
+  "homepage": "https://github.com/kstonekuan/trpc-chrome",
+  "repository": "github:kstonekuan/trpc-chrome",
+  "bugs": "https://github.com/kstonekuan/trpc-chrome/issues",
   "type": "module",
   "exports": {
     "./adapter": {
