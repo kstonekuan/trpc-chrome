@@ -1,0 +1,10 @@
+packages:
+  - .
+  - examples/with-plasmo
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - esbuild
+  - lmdb
+  - msgpackr-extract
+  - sharp

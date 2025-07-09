@@ -1,12 +1,10 @@
-import { resetMocks } from './__setup';
-
 import { createTRPCProxyClient } from '@trpc/client';
 import { initTRPC } from '@trpc/server';
-import { Unsubscribable, observable } from '@trpc/server/observable';
+import { observable, type Unsubscribable } from '@trpc/server/observable';
 import { z } from 'zod';
-
 import { createChromeHandler } from '../src/adapter';
 import { chromeLink } from '../src/link';
+import { resetMocks } from './__setup';
 
 afterEach(() => {
   resetMocks();

@@ -15,7 +15,7 @@ function Popup() {
 
   const onOpenNewTab = async () => {
     setErrorMessage(null);
-    const url = inputRef.current!.value;
+    const url = inputRef.current?.value;
     try {
       await trpc.openNewTab.mutate({ url });
     } catch (error) {
@@ -35,7 +35,9 @@ function Popup() {
       <h2>Extension using tRPC & Plasmo</h2>
       <input ref={inputRef} placeholder={'Enter a URL'} />
       {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
-      <button onClick={onOpenNewTab}>Open new tab</button>
+      <button type="button" onClick={onOpenNewTab}>
+        Open new tab
+      </button>
     </div>
   );
 }

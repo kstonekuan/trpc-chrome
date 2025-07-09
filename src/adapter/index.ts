@@ -1,9 +1,9 @@
-import { AnyProcedure, AnyRouter, ProcedureType, TRPCError } from '@trpc/server';
+import { type AnyProcedure, type AnyRouter, type ProcedureType, TRPCError } from '@trpc/server';
 // eslint-disable-next-line import/no-unresolved
 import type { NodeHTTPCreateContextOption } from '@trpc/server/dist/adapters/node-http/types';
 // eslint-disable-next-line import/no-unresolved
 import type { BaseHandlerOptions } from '@trpc/server/dist/internals/types';
-import { Unsubscribable, isObservable } from '@trpc/server/observable';
+import { isObservable, type Unsubscribable } from '@trpc/server/observable';
 
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
 import { getErrorFromUnknown } from './errors';
@@ -101,7 +101,7 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
 
         if (!isObservable(result)) {
           throw new TRPCError({
-            message: 'Subscription ${params.path} did not return an observable',
+            message: `Subscription ${params.path} did not return an observable`,
             code: 'INTERNAL_SERVER_ERROR',
           });
         }

@@ -15,33 +15,24 @@
   "homepage": "https://github.com/jlalmes/trpc-chrome",
   "repository": "github:jlalmes/trpc-chrome",
   "bugs": "https://github.com/jlalmes/trpc-chrome/issues",
-  "workspaces": [
-    ".",
-    "examples/with-plasmo"
-  ],
   "scripts": {
     "test": "tsc --noEmit && jest --verbose",
-    "build": "rimraf dist && rimraf adapter && rimraf link && rimraf types && tsc -p tsconfig.build.json && mv dist/* . && rimraf dist"
+    "build": "rimraf dist && rimraf adapter && rimraf link && rimraf types && tsc -p tsconfig.build.json && mv dist/* . && rimraf dist",
+    "lint": "biome lint --write",
+    "format": "biome format --write",
+    "check": "biome check --write"
   },
   "peerDependencies": {
     "@trpc/client": "^10.0.0",
     "@trpc/server": "^10.0.0"
   },
   "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^4.0.0",
+    "@biomejs/biome": "^2.1.1",
     "@types/chrome": "^0.0.203",
     "@types/jest": "^29.2.3",
     "@types/node": "^18.11.9",
-    "@typescript-eslint/eslint-plugin": "^5.44.0",
-    "@typescript-eslint/parser": "^5.44.0",
-    "eslint": "^8.28.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-prettier": "^4.2.1",
-    "eslint-plugin-promise": "^6.1.1",
     "jest": "^29.3.1",
     "jest-environment-jsdom": "^29.3.1",
-    "prettier": "^2.8.0",
     "rimraf": "^3.0.2",
     "superjson": "^1.11.0",
     "ts-jest": "^29.0.3",

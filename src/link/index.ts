@@ -1,4 +1,4 @@
-import { TRPCClientError, TRPCLink } from '@trpc/client';
+import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
 
