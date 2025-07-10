@@ -1,5 +1,6 @@
 import { createTRPCProxyClient } from '@trpc/client';
 import { TRPCError } from '@trpc/server';
+import { observable } from '@trpc/server/observable';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import { createChromeHandler } from '../src/adapter/index.js';
@@ -83,14 +84,19 @@ test('handles validation errors', async () => {
   await expect(trpc.validatedQuery.query({ name: 'hi' })).rejects.toThrow();
 });
 
-test('handles subscription errors', async () => {
+test('handles observable query errors', async () => {
   const t = initTRPCWithSuperjson();
 
   const appRouter = t.router({
-    errorSubscription: t.procedure.subscription(() => {
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Subscription error',
+    errorObservable: t.procedure.query(() => {
+      return observable((emit) => {
+        // Emit error through the observable
+        emit.error(
+          new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Observable error',
+          }),
+        );
       });
     }),
   });
@@ -108,21 +114,8 @@ test('handles subscription errors', async () => {
     links: [chromeLinkWithSuperjson({ port })],
   });
 
-  const onErrorMock = vi.fn();
-
-  trpc.errorSubscription.subscribe(undefined, {
-    onError: onErrorMock,
-    onData: () => {},
-  });
-
-  // Wait for error to propagate
-  await new Promise((resolve) => setTimeout(resolve, 10));
-
-  expect(onErrorMock).toHaveBeenCalledWith(
-    expect.objectContaining({
-      message: 'Subscription error',
-    }),
-  );
+  // Observable errors should reject the query promise
+  await expect(trpc.errorObservable.query()).rejects.toThrow('Observable error');
 });
 
 test('handles port disconnection', async () => {

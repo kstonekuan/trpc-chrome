@@ -417,6 +417,69 @@ For maximum type safety when using transformers:
    chromeLinkWithSuperjson({ portName: 'port' }) // Also uses SuperJSON
    ```
 
+## Real-time Data with Observables (tRPC v11)
+
+tRPC v11 allows any procedure (query/mutation) to return observables for real-time data:
+
+```typescript
+// background.ts
+import { observable } from '@trpc/server/observable';
+
+const appRouter = t.router({
+  // Real-time data stream
+  watchPrice: t.procedure
+    .input(z.object({ symbol: z.string() }))
+    .query(({ input }) => {
+      return observable<{ price: number; timestamp: Date }>((emit) => {
+        // Initial price
+        emit.next({ price: 100, timestamp: new Date() });
+        
+        // Simulate price updates
+        const interval = setInterval(() => {
+          const price = 100 + Math.random() * 10;
+          emit.next({ price, timestamp: new Date() });
+        }, 1000);
+        
+        // Cleanup on unsubscribe
+        return () => clearInterval(interval);
+      });
+    }),
+    
+  // Long-running operation with progress
+  processLargeFile: t.procedure
+    .input(z.object({ fileId: z.string() }))
+    .mutation(({ input }) => {
+      return observable<{ progress: number; status: string }>((emit) => {
+        emit.next({ progress: 0, status: 'Starting...' });
+        
+        // Simulate processing
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 10;
+          emit.next({ progress, status: `Processing... ${progress}%` });
+          
+          if (progress >= 100) {
+            emit.next({ progress: 100, status: 'Complete!' });
+            clearInterval(interval);
+            emit.complete();
+          }
+        }, 500);
+        
+        return () => clearInterval(interval);
+      });
+    }),
+});
+
+// content.ts - The adapter automatically handles observable streaming
+// Just call .query() or .mutate() as normal - the adapter detects observables
+const priceData = await client.watchPrice.query({ symbol: 'BTC' });
+console.log('Initial price:', priceData);
+
+// For progress tracking
+const result = await client.processLargeFile.mutate({ fileId: 'abc123' });
+console.log('Processing complete:', result);
+```
+
 ## Example
 
 Please see [full example here](examples/with-plasmo).

@@ -127,7 +127,79 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
 
         const result = await procedureFn(input);
 
-        if (method !== 'subscription') {
+        // Check if result is observable (for any procedure type)
+        if (isObservable(result)) {
+          // Handle observable results - this supports both:
+          // 1. Legacy .subscription() procedures
+          // 2. Modern .query()/.mutation() that return observables
+          const subscription = result.subscribe({
+            next: (data: any) => {
+              const serializedData = transformer.output.serialize(data);
+              sendResponse({
+                result: {
+                  type: 'data',
+                  data: serializedData,
+                },
+              });
+            },
+            error: (cause: any) => {
+              const error = getErrorFromUnknown(cause);
+
+              onError?.({
+                error,
+                type: method,
+                path: params?.path,
+                input,
+                ctx,
+                req: port,
+              });
+
+              debugMiddleware?.onError(port, error, { path: params?.path, method });
+
+              sendResponse({
+                error: getErrorShape({
+                  config: router._def._config,
+                  error,
+                  type: method,
+                  path: params?.path,
+                  input,
+                  ctx,
+                }),
+              });
+            },
+            complete: () => {
+              sendResponse({
+                result: {
+                  type: 'stopped',
+                },
+              });
+            },
+          });
+
+          if (subscriptions.has(id)) {
+            subscription.unsubscribe();
+            sendResponse({
+              result: {
+                type: 'stopped',
+              },
+            });
+            throw new TRPCError({
+              message: `Duplicate id ${id}`,
+              code: 'BAD_REQUEST',
+            });
+          }
+          listeners.push(() => subscription.unsubscribe());
+
+          subscriptions.set(id, subscription);
+
+          sendResponse({
+            result: {
+              type: 'started',
+            },
+          });
+          return;
+        } else {
+          // Non-observable result - regular query/mutation
           const data = transformer.output.serialize(result);
           sendResponse({
             result: {
@@ -137,80 +209,6 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
           });
           return;
         }
-
-        if (!isObservable(result)) {
-          throw new TRPCError({
-            message: `Subscription ${params.path} did not return an observable`,
-            code: 'INTERNAL_SERVER_ERROR',
-          });
-        }
-
-        const subscription = result.subscribe({
-          next: (data: any) => {
-            const serializedData = transformer.output.serialize(data);
-            sendResponse({
-              result: {
-                type: 'data',
-                data: serializedData,
-              },
-            });
-          },
-          error: (cause: any) => {
-            const error = getErrorFromUnknown(cause);
-
-            onError?.({
-              error,
-              type: method,
-              path: params?.path,
-              input,
-              ctx,
-              req: port,
-            });
-
-            debugMiddleware?.onError(port, error, { path: params?.path, method });
-
-            sendResponse({
-              error: getErrorShape({
-                config: router._def._config,
-                error,
-                type: method,
-                path: params?.path,
-                input,
-                ctx,
-              }),
-            });
-          },
-          complete: () => {
-            sendResponse({
-              result: {
-                type: 'stopped',
-              },
-            });
-          },
-        });
-
-        if (subscriptions.has(id)) {
-          subscription.unsubscribe();
-          sendResponse({
-            result: {
-              type: 'stopped',
-            },
-          });
-          throw new TRPCError({
-            message: `Duplicate id ${id}`,
-            code: 'BAD_REQUEST',
-          });
-        }
-        listeners.push(() => subscription.unsubscribe());
-
-        subscriptions.set(id, subscription);
-
-        sendResponse({
-          result: {
-            type: 'started',
-          },
-        });
-        return;
       } catch (cause) {
         const error = getErrorFromUnknown(cause);
 
