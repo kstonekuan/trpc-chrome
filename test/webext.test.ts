@@ -1,10 +1,11 @@
 import { createTRPCProxyClient } from '@trpc/client';
 import { initTRPC } from '@trpc/server';
 import { observable, type Unsubscribable } from '@trpc/server/observable';
+import { afterEach, expect, test, vi } from 'vitest';
 import { z } from 'zod';
-import { createChromeHandler } from '../src/adapter';
-import { chromeLink } from '../src/link';
-import { resetMocks } from './__setup';
+import { createChromeHandler } from '../src/adapter/index.js';
+import { chromeLink } from '../src/link/index.js';
+import { resetMocks } from './__setup.js';
 
 afterEach(() => {
   resetMocks();
@@ -13,21 +14,29 @@ afterEach(() => {
 const t = initTRPC.create();
 
 const appRouter = t.router({
-  echoQuery: t.procedure.input(z.object({ payload: z.string() })).query(({ input }) => input),
-  echoMutation: t.procedure.input(z.object({ payload: z.string() })).mutation(({ input }) => input),
-  echoSubscription: t.procedure.input(z.object({ payload: z.string() })).subscription(({ input }) =>
-    observable<typeof input>((emit) => {
-      emit.next(input);
-    }),
-  ),
+  echoQuery: t.procedure
+    .input(z.object({ payload: z.string() }))
+    .query(({ input }: { input: { payload: string } }) => input),
+  echoMutation: t.procedure
+    .input(z.object({ payload: z.string() }))
+    .mutation(({ input }: { input: { payload: string } }) => input),
+  echoSubscription: t.procedure
+    .input(z.object({ payload: z.string() }))
+    .subscription(({ input }: { input: { payload: string } }) =>
+      observable<typeof input>((emit) => {
+        emit.next(input);
+      }),
+    ),
   nestedRouter: t.router({
-    echoQuery: t.procedure.input(z.object({ payload: z.string() })).query(({ input }) => input),
+    echoQuery: t.procedure
+      .input(z.object({ payload: z.string() }))
+      .query(({ input }: { input: { payload: string } }) => input),
     echoMutation: t.procedure
       .input(z.object({ payload: z.string() }))
-      .mutation(({ input }) => input),
+      .mutation(({ input }: { input: { payload: string } }) => input),
     echoSubscription: t.procedure
       .input(z.object({ payload: z.string() }))
-      .subscription(({ input }) =>
+      .subscription(({ input }: { input: { payload: string } }) =>
         observable((emit) => {
           emit.next(input);
         }),
@@ -40,7 +49,7 @@ test('with query', async () => {
   createChromeHandler({
     router: appRouter,
     createContext: () => ({}),
-    onError: ({ error }) => console.error(error),
+    onError: ({ error }: { error: any }) => console.error(error),
   });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
@@ -69,7 +78,7 @@ test('with mutation', async () => {
   createChromeHandler({
     router: appRouter,
     createContext: () => ({}),
-    onError: ({ error }) => console.error(error),
+    onError: ({ error }: { error: any }) => console.error(error),
   });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
@@ -98,7 +107,7 @@ test('with subscription', async () => {
   createChromeHandler({
     router: appRouter,
     createContext: () => ({}),
-    onError: ({ error }) => console.error(error),
+    onError: ({ error }: { error: any }) => console.error(error),
   });
   expect(chrome.runtime.onConnect.addListener).toHaveBeenCalledTimes(1);
 
@@ -108,11 +117,11 @@ test('with subscription', async () => {
     links: [chromeLink({ port })],
   });
 
-  const onDataMock = jest.fn();
-  const onCompleteMock = jest.fn();
-  const onErrorMock = jest.fn();
-  const onStartedMock = jest.fn();
-  const onStoppedMock = jest.fn();
+  const onDataMock = vi.fn();
+  const onCompleteMock = vi.fn();
+  const onErrorMock = vi.fn();
+  const onStartedMock = vi.fn();
+  const onStoppedMock = vi.fn();
   const subscription = await new Promise<Unsubscribable>((resolve) => {
     const subscription = trpc.echoSubscription.subscribe(
       { payload: 'subscription1' },

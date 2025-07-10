@@ -1,48 +1,52 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
+import { vi } from 'vitest';
 
 type OnMessageListener = (message: any) => void;
 type OnConnectListener = (port: any) => void;
 
-const getMockChrome = jest.fn(() => {
+const getMockChrome = vi.fn(() => {
   const linkPortOnMessageListeners: OnMessageListener[] = [];
   const handlerPortOnMessageListeners: OnMessageListener[] = [];
   const handlerPortOnConnectListeners: OnConnectListener[] = [];
 
   return {
     runtime: {
-      connect: jest.fn(() => {
+      connect: vi.fn(() => {
         const handlerPort = {
-          postMessage: jest.fn((message) => {
+          postMessage: vi.fn((message) => {
+            // Handler sends response -> link receives it
             linkPortOnMessageListeners.forEach((listener) => listener(message));
           }),
           onMessage: {
-            addListener: jest.fn((listener) => {
+            addListener: vi.fn((listener) => {
+              // Handler listens for requests from link
               handlerPortOnMessageListeners.push(listener);
             }),
-            removeListener: jest.fn(),
+            removeListener: vi.fn(),
           },
           onDisconnect: {
-            addListener: jest.fn(),
-            removeListener: jest.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
           },
+          disconnect: vi.fn(),
         };
 
         const linkPort = {
-          postMessage: jest.fn((message) => {
+          postMessage: vi.fn((message) => {
+            // Link sends message -> handler receives it
             handlerPortOnMessageListeners.forEach((listener) => listener(message));
           }),
           onMessage: {
-            addListener: jest.fn((listener) => {
+            addListener: vi.fn((listener) => {
+              // Link listens for responses from handler
               linkPortOnMessageListeners.push(listener);
             }),
-            removeListener: jest.fn(),
+            removeListener: vi.fn(),
           },
           onDisconnect: {
-            addListener: jest.fn(),
-            removeListener: jest.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
           },
+          disconnect: vi.fn(),
         };
 
         handlerPortOnConnectListeners.forEach((listener) => listener(handlerPort));
@@ -50,7 +54,7 @@ const getMockChrome = jest.fn(() => {
         return linkPort;
       }),
       onConnect: {
-        addListener: jest.fn((listener) => {
+        addListener: vi.fn((listener) => {
           handlerPortOnConnectListeners.push(listener);
         }),
       },

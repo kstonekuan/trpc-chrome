@@ -7,8 +7,9 @@ import {
 } from '@trpc/server';
 import { isObservable, type Unsubscribable } from '@trpc/server/observable';
 
-import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
-import { getErrorFromUnknown } from './errors';
+import type { TRPCChromeRequest, TRPCChromeResponse } from '../types/index.js';
+import { createDebugMiddleware } from '../utils/debug.js';
+import { getErrorFromUnknown } from './errors.js';
 
 export type CreateChromeContextOptions = {
   req: chrome.runtime.Port;
@@ -26,13 +27,19 @@ export type CreateChromeHandlerOptions<TRouter extends AnyRouter> = {
     ctx: unknown;
     req: chrome.runtime.Port;
   }) => void;
+  debug?: boolean | import('../utils/debug.js').DebugOptions;
 };
 
 export const createChromeHandler = <TRouter extends AnyRouter>(
   opts: CreateChromeHandlerOptions<TRouter>,
 ) => {
-  const { router, createContext, onError } = opts;
+  const { router, createContext, onError, debug } = opts;
   const { transformer } = router._def._config;
+
+  // Set up debug mode
+  const debugMiddleware = debug
+    ? createDebugMiddleware(typeof debug === 'boolean' ? { enabled: debug } : debug)
+    : null;
 
   chrome.runtime.onConnect.addListener((port) => {
     const subscriptions = new Map<number | string, Unsubscribable>();
@@ -53,10 +60,18 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
 
       const { id, jsonrpc, method } = trpc;
 
+      // Log request
+      debugMiddleware?.onRequest(port, message);
+
       const sendResponse = (response: TRPCChromeResponse['trpc']) => {
-        port.postMessage({
+        const fullResponse = {
           trpc: { id, jsonrpc, ...response },
-        } as TRPCChromeResponse);
+        } as TRPCChromeResponse;
+
+        // Log response
+        debugMiddleware?.onResponse(port, fullResponse);
+
+        port.postMessage(fullResponse);
       };
 
       let params: { path: string; input: unknown } | undefined;
@@ -78,9 +93,16 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
           return;
         }
 
-        params = trpc.params;
+        params = trpc.params as { path: string; input: unknown } | undefined;
+        if (!params) {
+          throw new TRPCError({
+            message: 'Missing params in request',
+            code: 'BAD_REQUEST',
+          });
+        }
 
-        input = transformer.input.deserialize(params.input);
+        input =
+          params.input !== undefined ? transformer.input.deserialize(params.input) : undefined;
 
         ctx = await createContext?.({
           req: port,
@@ -124,15 +146,16 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
         }
 
         const subscription = result.subscribe({
-          next: (data) => {
+          next: (data: any) => {
+            const serializedData = transformer.output.serialize(data);
             sendResponse({
               result: {
                 type: 'data',
-                data,
+                data: serializedData,
               },
             });
           },
-          error: (cause) => {
+          error: (cause: any) => {
             const error = getErrorFromUnknown(cause);
 
             onError?.({
@@ -143,6 +166,8 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
               ctx,
               req: port,
             });
+
+            debugMiddleware?.onError(port, error, { path: params?.path, method });
 
             sendResponse({
               error: getErrorShape({
@@ -197,6 +222,8 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
           ctx,
           req: port,
         });
+
+        debugMiddleware?.onError(port, error, { path: params?.path, method });
 
         sendResponse({
           error: getErrorShape({

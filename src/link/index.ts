@@ -1,13 +1,17 @@
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
-import type superjson from 'superjson';
-import type { TRPCChromeRequest, TRPCChromeResponse } from '../types';
+import type { TRPCChromeRequest, TRPCChromeResponse } from '../types/index.js';
+
+export interface TransformerLike {
+  serialize(obj: unknown): unknown;
+  deserialize(obj: unknown): unknown;
+}
 
 export type ChromeLinkOptions = {
   port?: chrome.runtime.Port;
   portName?: string;
-  transformer?: superjson;
+  transformer?: TransformerLike;
 };
 
 export const chromeLink = <TRouter extends AnyRouter>(
@@ -15,9 +19,6 @@ export const chromeLink = <TRouter extends AnyRouter>(
 ): TRPCLink<TRouter> => {
   return () => {
     const { port: providedPort, portName, transformer } = opts;
-
-    // Use provided port or create a new one with optional name
-    const port = providedPort || chrome.runtime.connect(portName ? { name: portName } : undefined);
     return ({ op }) => {
       return observable((observer) => {
         const listeners: (() => void)[] = [];
@@ -26,6 +27,10 @@ export const chromeLink = <TRouter extends AnyRouter>(
 
         try {
           const input = transformer ? transformer.serialize(op.input) : op.input;
+
+          // Create port if not provided
+          const port =
+            providedPort || chrome.runtime.connect(portName ? { name: portName } : undefined);
 
           const onDisconnect = () => {
             observer.error(new TRPCClientError('Port disconnected prematurely'));
@@ -81,6 +86,8 @@ export const chromeLink = <TRouter extends AnyRouter>(
         return () => {
           listeners.forEach((unsub) => unsub());
           if (type === 'subscription') {
+            const port =
+              providedPort || chrome.runtime.connect(portName ? { name: portName } : undefined);
             port.postMessage({
               trpc: {
                 id,

@@ -17,6 +17,10 @@
 > - ✅ **Updated dependencies** - All dependencies updated to latest versions
 > - ✅ **Biome integration** - Modern linting and formatting
 > - ✅ **Better DX** - Watch mode, source maps, improved error handling
+> - ✅ **Debug mode** - Chrome DevTools integration for request/response logging
+> - ✅ **Connection management** - Auto-reconnect and connection state monitoring
+> - ✅ **Port management** - Centralized port handling for complex extensions
+> - ✅ **Type-safe ports** - Compile-time and runtime port name validation
 
 ## **[Chrome extension](https://developer.chrome.com/docs/extensions/mv3/) support for [tRPC](https://trpc.io/)** 🧩
 
@@ -40,9 +44,9 @@ yarn add @kstonekuan/trpc-chrome
 ```typescript
 // background.ts
 import { createChromeHandler } from '@kstonekuan/trpc-chrome/adapter';
-import { createTRPCForChrome } from '@kstonekuan/trpc-chrome/utils';
+import { initTRPCWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
 
-const t = createTRPCForChrome(); // Pre-configured with SuperJSON
+const t = initTRPCWithSuperjson(); // Pre-configured with SuperJSON
 
 const appRouter = t.router({
   // ...procedures
@@ -102,9 +106,9 @@ Peer dependencies:
 
 ```typescript
 // background.ts
-import { createTRPCForChrome, mergeRouters } from '@kstonekuan/trpc-chrome/utils';
+import { initTRPCWithSuperjson, createNamespacedRouter } from '@kstonekuan/trpc-chrome/utils';
 
-const t = createTRPCForChrome(); // Pre-configured with SuperJSON
+const t = initTRPCWithSuperjson(); // Pre-configured with SuperJSON
 
 const userRouter = t.router({
   getProfile: t.procedure.query(() => ({ name: 'John' })),
@@ -116,16 +120,19 @@ const settingsRouter = t.router({
   setTheme: t.procedure.input(z.enum(['light', 'dark'])).mutation(({ input }) => input),
 });
 
-// Merge multiple routers
-const appRouter = mergeRouters(userRouter, settingsRouter);
-
-// Or create namespaced structure
-const appRouter2 = t.router({
+// ✅ Recommended: Namespaced router with perfect type inference
+const appRouter = t.router({
   user: userRouter,
   settings: settingsRouter,
 });
 
-// Usage: trpc.user.getProfile.query()
+// ✅ Alternative: Using helper function
+const appRouter2 = createNamespacedRouter(t, {
+  user: userRouter,
+  settings: settingsRouter,
+});
+
+// Usage: trpc.user.getProfile.query(), trpc.settings.getTheme.query()
 ```
 
 ### Multi-Channel Communication
@@ -157,6 +164,177 @@ const heavyProcedure = t.procedure
   });
 ```
 
+### Debug Mode with Chrome DevTools Integration
+
+```typescript
+// background.ts
+import { createChromeHandler } from '@kstonekuan/trpc-chrome/adapter';
+
+// Enable debug mode for development
+createChromeHandler({
+  router: appRouter,
+  createContext: () => ({}),
+  onError: ({ error }) => console.error(error),
+  debug: true, // Enable debug logging
+});
+
+// Or with custom configuration
+createChromeHandler({
+  router: appRouter,
+  createContext: () => ({}),
+  onError: ({ error }) => console.error(error),
+  debug: {
+    enabled: true,
+    logStyle: 'detailed', // 'simple' | 'detailed'
+    colorize: true,
+    measurePerformance: true,
+    filter: (entry) => {
+      // Filter out specific requests
+      return entry.path !== 'heartbeat';
+    },
+  },
+});
+
+// Debug logs appear in Chrome DevTools console with:
+// - Request/response timing
+// - Procedure paths and methods
+// - Input/output data
+// - Error stack traces
+```
+
+### Port Management
+
+```typescript
+import { ChromePortManager } from '@kstonekuan/trpc-chrome/utils';
+
+// Create a port manager for centralized connection handling
+const portManager = new ChromePortManager();
+
+// Get or create a port connection
+const port = portManager.getPort('main-connection');
+
+// Monitor connection state
+portManager.onConnect('main-connection', (port) => {
+  console.log('Port connected:', port.name);
+});
+
+portManager.onDisconnect('main-connection', (port) => {
+  console.log('Port disconnected:', port.name);
+});
+
+// Check active connections
+const activePorts = portManager.getActivePorts();
+console.log(`Active connections: ${activePorts.length}`);
+```
+
+### Connection State Management with Auto-Reconnect
+
+```typescript
+import { createManagedChromeLink } from '@kstonekuan/trpc-chrome/utils';
+
+// Create a link with automatic reconnection
+const managedLink = createManagedChromeLink({
+  portName: 'stable-connection',
+  transformer: superjson,
+  maxReconnectAttempts: 5,
+  reconnectInterval: 1000,
+  onStateChange: (state) => {
+    console.log(`Connection state: ${state}`);
+    // Handle UI updates based on connection state
+  },
+});
+
+const chromeClient = createTRPCClient<AppRouter>({
+  links: [managedLink],
+});
+```
+
+### Type-Safe Port Names
+
+```typescript
+import { createPortNames, TypedPortRegistry } from '@kstonekuan/trpc-chrome/utils';
+
+// Define your port names with full type safety
+const PortNames = createPortNames([
+  'content-to-background',
+  'popup-to-background',
+  'devtools-to-background',
+  'options-to-background',
+] as const);
+
+// Use typed port names throughout your extension
+const contentPort = chrome.runtime.connect({ 
+  name: PortNames.contentToBackground // Type-safe!
+});
+
+// Create a typed registry for managing multiple ports
+const portRegistry = new TypedPortRegistry(PortNames);
+
+// Connect with type-safe keys
+const port = portRegistry.connect('contentToBackground');
+
+// Create typed links
+const contentClient = createTRPCClient<AppRouter>({
+  links: [portRegistry.createLink('contentToBackground', { transformer: superjson })],
+});
+
+const popupClient = createTRPCClient<AppRouter>({
+  links: [portRegistry.createLink('popupToBackground', { transformer: superjson })],
+});
+
+// Validate port names at runtime
+import { createPortValidator } from '@kstonekuan/trpc-chrome/utils';
+
+const validator = createPortValidator(['content-to-background', 'popup-to-background'] as const);
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (validator.isValid(port.name)) {
+    // Handle known port types
+    console.log(`Valid port connected: ${port.name}`);
+  }
+});
+```
+
+### Debug Panel for Development
+
+```typescript
+import { createDebugPanel, getGlobalDebugger } from '@kstonekuan/trpc-chrome/utils';
+
+// Create a debug panel (usually in your extension's devtools or popup)
+const cleanup = createDebugPanel(document.getElementById('debug-container'));
+
+// Access debug logs programmatically
+const debugger = getGlobalDebugger();
+const logs = debugger?.getLogs() || [];
+console.log('Total requests:', logs.length);
+
+// Filter logs
+const errors = logs.filter(log => log.type === 'error');
+console.log('Errors:', errors);
+
+// Clear logs
+debugger?.clearLogs();
+
+// Cleanup when done
+cleanup();
+```
+
+### Helper Utilities
+
+```typescript
+import { chromeLinkWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
+
+// Pre-configured Chrome link with SuperJSON
+const trpc = createTRPCClient<AppRouter>({
+  links: [
+    chromeLinkWithSuperjson({ 
+      portName: 'my-connection'
+      // transformer is already set to superjson
+    })
+  ],
+});
+```
+
 ## Example
 
 Please see [full example here](examples/with-plasmo).
@@ -169,11 +347,11 @@ _For advanced use-cases, please find examples in our [complete test suite](test)
 
 Please see [full typings here](src/link/index.ts).
 
-| Property      | Type                        | Description                                                      | Required |
-| ------------- | --------------------------- | ---------------------------------------------------------------- | -------- |
-| `port`        | `chrome.runtime.Port`       | An open web extension port between content & background scripts. | `false`  |
-| `portName`    | `string`                    | Name for the port connection (e.g., 'ui-to-background'). If provided, a new port will be created. | `false`  |
-| `transformer` | `superjson`                 | Data transformer for serializing/deserializing data (e.g., superjson). | `false`  |
+| Property      | Type                  | Description                                                                                       | Required |
+| ------------- | --------------------- | ------------------------------------------------------------------------------------------------- | -------- |
+| `port`        | `chrome.runtime.Port` | An open web extension port between content & background scripts.                                  | `false`  |
+| `portName`    | `string`              | Name for the port connection (e.g., 'ui-to-background'). If provided, a new port will be created. | `false`  |
+| `transformer` | `superjson`           | Data transformer for serializing/deserializing data (e.g., superjson).                            | `false`  |
 
 Note: Either `port` or `portName` must be provided, but not both.
 
@@ -186,13 +364,10 @@ Please see [full typings here](src/adapter/index.ts).
 | `router`        | `Router`   | Your application tRPC router.                          | `true`   |
 | `createContext` | `Function` | Passes contextual (`ctx`) data to procedure resolvers. | `true`   |
 | `onError`       | `Function` | Called if error occurs inside handler.                 | `true`   |
+| `debug`         | `boolean \| DebugOptions` | Enable debug logging with Chrome DevTools integration. | `false`  |
 
 ---
 
 ## License
 
 Distributed under the MIT License. See LICENSE for more information.
-
-## Contact
-
-James Berry - Follow me on Twitter [@jlalmes](https://twitter.com/jlalmes) 💙
