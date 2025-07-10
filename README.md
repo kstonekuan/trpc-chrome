@@ -61,33 +61,59 @@ createChromeHandler({
 });
 ```
 
-**3. Add a `chromeLink` to the client in your content script.**
+**3. Add a `chromeLinkWithSuperjson` to the client in your content script.**
 
 ```typescript
 // content.ts
 import { createTRPCClient } from '@trpc/client';
-import { chromeLink } from '@kstonekuan/trpc-chrome/link';
-import superjson from 'superjson'; // Optional: for Date, Map, Set support
+import { chromeLinkWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
 
 import type { AppRouter } from './background';
 
-// Option 1: Named port connection
+// Option 1: Named port connection (recommended)
 export const chromeClient = createTRPCClient<AppRouter>({
   links: [
-    chromeLink({ 
+    chromeLinkWithSuperjson({ 
       portName: 'ui-to-background', // Named port for multi-channel communication
-      transformer: superjson, // Optional: must match server transformer
     })
   ],
 });
 
-// Option 2: Explicit port connection (legacy)
+// Option 2: Explicit port connection
 const port = chrome.runtime.connect();
 export const chromeClient2 = createTRPCClient<AppRouter>({
   links: [
-    chromeLink({ 
+    chromeLinkWithSuperjson({ 
       port,
-      transformer: superjson, // Optional: must match server transformer
+    })
+  ],
+});
+```
+
+> **Type Safety Note**: When using `initTRPCWithSuperjson()` on the server, always use `chromeLinkWithSuperjson()` on the client. This ensures the transformers match and your Date, Map, Set, and other complex types are properly serialized.
+
+### Using Custom Transformers
+
+If you need to use a different transformer or no transformer at all:
+
+```typescript
+// background.ts
+import { initTRPC } from '@trpc/server';
+import { createChromeHandler } from '@kstonekuan/trpc-chrome/adapter';
+
+const t = initTRPC.create({
+  // Custom transformer or none
+  transformer: myCustomTransformer, // or omit for no transformer
+});
+
+// content.ts
+import { chromeLink } from '@kstonekuan/trpc-chrome/link';
+
+const chromeClient = createTRPCClient<AppRouter>({
+  links: [
+    chromeLink({ 
+      portName: 'ui-to-background',
+      transformer: myCustomTransformer, // Must match server!
     })
   ],
 });
@@ -321,10 +347,15 @@ cleanup();
 
 ### Helper Utilities
 
-```typescript
-import { chromeLinkWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
+For better type safety and consistency, we provide pre-configured helpers:
 
-// Pre-configured Chrome link with SuperJSON
+```typescript
+// Server-side: Pre-configured tRPC with SuperJSON
+import { initTRPCWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
+const t = initTRPCWithSuperjson();
+
+// Client-side: Matching Chrome link with SuperJSON
+import { chromeLinkWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
 const trpc = createTRPCClient<AppRouter>({
   links: [
     chromeLinkWithSuperjson({ 
@@ -334,6 +365,29 @@ const trpc = createTRPCClient<AppRouter>({
   ],
 });
 ```
+
+These helpers ensure your transformers always match between server and client.
+
+### TypeScript Best Practices
+
+For maximum type safety when using transformers:
+
+1. **Always use matching pairs**:
+   - `initTRPCWithSuperjson()` + `chromeLinkWithSuperjson()`
+   - `initTRPC.create()` + `chromeLink()` (with same transformer)
+
+2. **Avoid transformer mismatches** which cause runtime errors:
+   ```typescript
+   // ❌ BAD: Mismatched transformers
+   const t = initTRPCWithSuperjson(); // Uses SuperJSON
+   // ...
+   chromeLink({ portName: 'port' }) // No transformer!
+   
+   // ✅ GOOD: Matching transformers
+   const t = initTRPCWithSuperjson(); // Uses SuperJSON
+   // ...
+   chromeLinkWithSuperjson({ portName: 'port' }) // Also uses SuperJSON
+   ```
 
 ## Example
 
