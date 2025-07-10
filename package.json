@@ -1,6 +1,6 @@
 {
   "name": "@kstonekuan/trpc-chrome",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "tRPC adapter for Web Extensions",
   "author": "kstonekuan",
   "private": false,
