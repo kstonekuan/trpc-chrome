@@ -4,3 +4,4 @@ dist
 adapter/**/*
 link/**/*
 types/**/*
+.claude

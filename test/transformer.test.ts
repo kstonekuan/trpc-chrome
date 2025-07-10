@@ -17,7 +17,7 @@ test('SuperJSON transformer with complex types', async () => {
       .input(
         z.object({
           date: z.date(),
-          data: z.record(z.any()),
+          data: z.record(z.string(), z.any()),
         }),
       )
       .query(({ input }: { input: { date: Date; data: Record<string, any> } }) => ({
