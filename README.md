@@ -46,7 +46,13 @@ yarn add @kstonekuan/trpc-chrome
 import { createChromeHandler } from '@kstonekuan/trpc-chrome/adapter';
 import { initTRPCWithSuperjson } from '@kstonekuan/trpc-chrome/utils';
 
-const t = initTRPCWithSuperjson(); // Pre-configured with SuperJSON
+// Define your context type
+type Context = {
+  userId?: string;
+  // Add other context properties as needed
+};
+
+const t = initTRPCWithSuperjson<Context>(); // Pre-configured with SuperJSON and context
 
 const appRouter = t.router({
   // ...procedures
@@ -56,8 +62,14 @@ export type AppRouter = typeof appRouter;
 
 createChromeHandler({
   router: appRouter,
-  createContext: () => ({}), // Required in v11
-  onError: ({ error }) => console.error(error), // Required in v11
+  createContext: ({ req }) => {
+    // req is the chrome.runtime.Port
+    // You can extract user info, permissions, etc.
+    return {
+      userId: 'user-123', // Example: get from storage or port sender
+    };
+  },
+  onError: ({ error }) => console.error(error),
 });
 ```
 
@@ -134,11 +146,27 @@ Peer dependencies:
 // background.ts
 import { initTRPCWithSuperjson, createNamespacedRouter } from '@kstonekuan/trpc-chrome/utils';
 
-const t = initTRPCWithSuperjson(); // Pre-configured with SuperJSON
+type Context = {
+  userId: string;
+  permissions: string[];
+};
+
+const t = initTRPCWithSuperjson<Context>(); // Pre-configured with SuperJSON and context
 
 const userRouter = t.router({
-  getProfile: t.procedure.query(() => ({ name: 'John' })),
-  updateProfile: t.procedure.input(z.object({ name: z.string() })).mutation(({ input }) => input),
+  getProfile: t.procedure.query(({ ctx }) => {
+    // Access context here
+    return { name: 'John', userId: ctx.userId };
+  }),
+  updateProfile: t.procedure
+    .input(z.object({ name: z.string() }))
+    .mutation(({ input, ctx }) => {
+      // Check permissions from context
+      if (!ctx.permissions.includes('edit:profile')) {
+        throw new Error('Unauthorized');
+      }
+      return input;
+    }),
 });
 
 const settingsRouter = t.router({

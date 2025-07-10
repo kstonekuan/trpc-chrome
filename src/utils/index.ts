@@ -5,9 +5,17 @@ import { chromeLink } from '../link/index.js';
 /**
  * Creates a tRPC instance with SuperJSON transformer pre-configured
  * for Chrome extension environments.
+ *
+ * @example
+ * // Without context
+ * const t = initTRPCWithSuperjson();
+ *
+ * @example
+ * // With context
+ * const t = initTRPCWithSuperjson<{ userId: string }>();
  */
-export const initTRPCWithSuperjson = () => {
-  return initTRPC.create({
+export const initTRPCWithSuperjson = <TContext extends object = object>() => {
+  return initTRPC.context<TContext>().create({
     transformer: superjson,
     isServer: false,
     allowOutsideOfServer: true,
@@ -35,8 +43,11 @@ export const chromeLinkWithSuperjson = (options: Parameters<typeof chromeLink>[0
  * });
  * // Usage: trpc.user.getProfile.query()
  */
-export const createNamespacedRouter = <T extends Record<string, AnyRouter>>(
-  t: ReturnType<typeof initTRPCWithSuperjson>,
+export const createNamespacedRouter = <
+  TContext extends object,
+  T extends Record<string, AnyRouter>,
+>(
+  t: ReturnType<typeof initTRPCWithSuperjson<TContext>>,
   routers: T,
 ) => {
   return t.router(routers);
