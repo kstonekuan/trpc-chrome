@@ -5,9 +5,11 @@ import dts from 'vite-plugin-dts';
 export default defineConfig({
   plugins: [
     dts({
-      insertTypesEntry: false,
+      insertTypesEntry: true,
       rollupTypes: false,
-      exclude: ['test/**', 'examples/**'],
+      exclude: ['test/**/*', 'examples/**/*', 'vitest.config.ts'],
+      copyDtsFiles: true,
+      outDir: 'dist',
     }),
   ],
   build: {
@@ -19,21 +21,38 @@ export default defineConfig({
         utils: resolve(__dirname, 'src/utils/index.ts'),
       },
       formats: ['es', 'cjs'],
+      fileName: (format, entryName) => {
+        const extension = format === 'es' ? 'js' : 'cjs';
+        return `${entryName}.${extension}`;
+      },
     },
     rollupOptions: {
       external: [
         '@trpc/server',
         '@trpc/client',
         '@trpc/server/observable',
-        '@trpc/server/unstable-core-do-not-import',
-        '@trpc/server/adapters/node-http',
-        'chrome',
+        '@trpc/server/rpc',
+        'superjson',
+        // Mark chrome as external for browser environments
+        /^chrome$/,
       ],
       output: {
+        preserveModules: false,
         exports: 'named',
+        chunkFileNames: (chunkInfo) => {
+          const names = chunkInfo.name.split('-');
+          return `chunks/${names[names.length - 1]}.js`;
+        },
+        banner: '/* @kstonekuan/trpc-chrome - MIT License */',
       },
     },
     sourcemap: true,
-    minify: false, // Keep unminified for library
+    minify: true,
+    target: 'esnext',
+    reportCompressedSize: true,
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+    conditions: ['import', 'module', 'browser', 'default'],
   },
 });
