@@ -28,12 +28,19 @@ export type CreateChromeHandlerOptions<TRouter extends AnyRouter> = {
     req: chrome.runtime.Port;
   }) => void;
   debug?: boolean | DebugOptions;
+  /**
+   * Filter which ports to accept connections from.
+   * If not provided, all connections are accepted.
+   * @param port - The port attempting to connect
+   * @returns true to accept the connection, false to ignore it
+   */
+  acceptPort?: (port: chrome.runtime.Port) => boolean;
 };
 
 export const createChromeHandler = <TRouter extends AnyRouter>(
   opts: CreateChromeHandlerOptions<TRouter>,
 ) => {
-  const { router, createContext, onError, debug } = opts;
+  const { router, createContext, onError, debug, acceptPort } = opts;
   const { transformer } = router._def._config;
 
   // Set up debug mode
@@ -42,6 +49,12 @@ export const createChromeHandler = <TRouter extends AnyRouter>(
     : null;
 
   chrome.runtime.onConnect.addListener((port) => {
+    // Filter ports if acceptPort is provided
+    if (acceptPort && !acceptPort(port)) {
+      // Optionally disconnect the port immediately
+      port.disconnect();
+      return;
+    }
     const subscriptions = new Map<number | string, Unsubscribable>();
     const listeners: (() => void)[] = [];
 

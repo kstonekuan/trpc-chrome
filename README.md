@@ -256,6 +256,35 @@ createChromeHandler({
 // - Error stack traces
 ```
 
+### Port Filtering
+
+```typescript
+// background.ts - Only accept connections from specific sources
+createChromeHandler({
+  router: appRouter,
+  createContext: () => ({}),
+  acceptPort: (port) => {
+    // Filter by port name
+    if (port.name === 'trusted-port') return true;
+    
+    // Filter by sender (e.g., only from your extension)
+    if (port.sender?.id === chrome.runtime.id) return true;
+    
+    // Filter by sender URL pattern
+    if (port.sender?.url?.startsWith('https://myapp.com')) return true;
+    
+    // Reject all others
+    return false;
+  },
+});
+
+// content.ts - Connect with the expected port name
+const port = chrome.runtime.connect({ name: 'trusted-port' });
+const trpc = createTRPCProxyClient<AppRouter>({
+  links: [chromeLink({ port })],
+});
+```
+
 ### Port Management
 
 ```typescript

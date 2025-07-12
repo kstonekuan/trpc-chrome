@@ -10,8 +10,12 @@ const getMockChrome = vi.fn(() => {
 
   return {
     runtime: {
-      connect: vi.fn(() => {
+      id: 'test-extension-id',
+      connect: vi.fn((connectInfo?: { name?: string }) => {
+        let linkPort: any;
+
         const handlerPort = {
+          name: connectInfo?.name,
           postMessage: vi.fn((message) => {
             // Handler sends response -> link receives it
             linkPortOnMessageListeners.forEach((listener) => listener(message));
@@ -27,10 +31,14 @@ const getMockChrome = vi.fn(() => {
             addListener: vi.fn(),
             removeListener: vi.fn(),
           },
-          disconnect: vi.fn(),
+          disconnect: vi.fn(() => {
+            // When handler disconnects, also disconnect the link port
+            if (linkPort) linkPort.disconnect();
+          }),
         };
 
-        const linkPort = {
+        linkPort = {
+          name: connectInfo?.name,
           postMessage: vi.fn((message) => {
             // Link sends message -> handler receives it
             handlerPortOnMessageListeners.forEach((listener) => listener(message));
