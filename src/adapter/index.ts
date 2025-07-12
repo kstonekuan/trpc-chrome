@@ -8,7 +8,7 @@ import {
 import { isObservable, type Unsubscribable } from '@trpc/server/observable';
 
 import type { TRPCChromeRequest, TRPCChromeResponse } from '../types/index.js';
-import { createDebugMiddleware } from '../utils/debug.js';
+import { createDebugMiddleware, type DebugOptions } from '../utils/debug.js';
 import { getErrorFromUnknown } from './errors.js';
 
 export type CreateChromeContextOptions = {
@@ -27,7 +27,7 @@ export type CreateChromeHandlerOptions<TRouter extends AnyRouter> = {
     ctx: unknown;
     req: chrome.runtime.Port;
   }) => void;
-  debug?: boolean | import('../utils/debug.js').DebugOptions;
+  debug?: boolean | DebugOptions;
 };
 
 export const createChromeHandler = <TRouter extends AnyRouter>(
